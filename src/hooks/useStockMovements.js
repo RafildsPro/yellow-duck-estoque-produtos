@@ -10,7 +10,7 @@ export function useStockMovements() {
     setLoading(true)
     const { data, error } = await supabase
       .from('stock_movements')
-      .select('*, products(name)')
+      .select('*, products(name, sale_price)')
       .order('created_at', { ascending: false })
 
     if (error) setError(error.message)

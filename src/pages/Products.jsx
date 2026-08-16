@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react'
-import { Plus, Pencil, Trash2, PackageMinus, MinusCircle, Layers, Search } from 'lucide-react'
+import { Plus, Pencil, Trash2, PackageMinus, MinusCircle, Layers, Search, Download } from 'lucide-react'
 import { useProducts } from '../hooks/useProducts'
 import { LOW_STOCK_THRESHOLD } from '../lib/constants'
 import { formatBRL } from '../lib/format'
 import { normalize } from '../lib/normalize'
+import { downloadCSV } from '../lib/csv'
 import ProductForm from '../components/ProductForm'
 import StockOutModal from '../components/StockOutModal'
 import MultiSaleModal from '../components/MultiSaleModal'
@@ -73,6 +74,30 @@ export default function Products() {
     await registerStockOut(product, 1, 'Venda rápida')
   }
 
+  function handleExportCSV() {
+    const headers = [
+      'Nome',
+      'Categoria',
+      'Quantidade',
+      'Custo',
+      'Venda',
+      'Condição',
+      'Data de entrada',
+      'Observações',
+    ]
+    const rows = filtered.map((p) => [
+      p.name,
+      p.category,
+      p.quantity,
+      p.cost_price,
+      p.sale_price,
+      p.condition || '',
+      new Date(p.entry_date).toLocaleDateString('pt-BR'),
+      p.notes || '',
+    ])
+    downloadCSV(`estoque-${new Date().toISOString().slice(0, 10)}.csv`, headers, rows)
+  }
+
   if (loading) return <p className="text-gray-400">Carregando produtos...</p>
   if (error) return <p className="text-red-400">Erro ao carregar dados: {error}</p>
 
@@ -81,6 +106,13 @@ export default function Products() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-xl font-semibold text-gray-100">Produtos</h1>
         <div className="flex gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="flex items-center gap-2 rounded-lg border border-navy-600 px-4 py-2 text-sm font-semibold text-gray-100 hover:bg-navy-700"
+          >
+            <Download size={16} />
+            Exportar CSV
+          </button>
           <button
             onClick={() => setShowMultiSale(true)}
             className="flex items-center gap-2 rounded-lg border border-navy-600 px-4 py-2 text-sm font-semibold text-gray-100 hover:bg-navy-700"
