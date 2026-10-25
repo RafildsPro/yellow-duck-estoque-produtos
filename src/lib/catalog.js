@@ -33,6 +33,7 @@ const SECTION_PREFIXES = [
   ['Blister Quádruplo', 'blister-quadruplo'],
   ['Box', 'box'],
   ['Coleção Ilustração', 'box'],
+  ['Caixa -', 'box'],
   ['Mini Lata', 'mini-tin'],
 ]
 
