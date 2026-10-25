@@ -59,16 +59,18 @@ export default function Layout() {
             </NavLink>
           </nav>
 
-          <div className="flex items-center gap-3">
-            <span className="hidden text-xs text-gray-500 md:inline">{session?.user?.email}</span>
-            <button
-              onClick={signOut}
-              className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-navy-700 hover:text-gold-500"
-            >
-              <LogOut size={16} />
-              Sair
-            </button>
-          </div>
+          {session && (
+            <div className="flex items-center gap-3">
+              <span className="hidden text-xs text-gray-500 md:inline">{session.user?.email}</span>
+              <button
+                onClick={signOut}
+                className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm text-gray-300 hover:bg-navy-700 hover:text-gold-500"
+              >
+                <LogOut size={16} />
+                Sair
+              </button>
+            </div>
+          )}
         </div>
       </header>
 
