@@ -46,23 +46,24 @@ create trigger products_set_updated_at
   before update on public.products
   for each row execute function public.set_updated_at();
 
--- RLS: acesso liberado (login desativado temporariamente no app).
--- Para voltar a exigir usuário autenticado, troque "to public" por "to authenticated"
--- nas duas policies abaixo.
+-- RLS: só usuário autenticado lê e altera.
+-- Em um banco que estava com acesso liberado, use supabase/trancar_acesso.sql.
 alter table public.products enable row level security;
 alter table public.stock_movements enable row level security;
 
+drop policy if exists "public full access" on public.products;
 drop policy if exists "authenticated full access" on public.products;
-create policy "public full access" on public.products
+create policy "authenticated full access" on public.products
   for all
-  to public
+  to authenticated
   using (true)
   with check (true);
 
+drop policy if exists "public full access" on public.stock_movements;
 drop policy if exists "authenticated full access" on public.stock_movements;
-create policy "public full access" on public.stock_movements
+create policy "authenticated full access" on public.stock_movements
   for all
-  to public
+  to authenticated
   using (true)
   with check (true);
 
@@ -77,20 +78,23 @@ create policy "public read product photos" on storage.objects
   to public
   using (bucket_id = 'product-photos');
 
+drop policy if exists "public upload product photos" on storage.objects;
 drop policy if exists "authenticated upload product photos" on storage.objects;
-create policy "public upload product photos" on storage.objects
+create policy "authenticated upload product photos" on storage.objects
   for insert
-  to public
+  to authenticated
   with check (bucket_id = 'product-photos');
 
+drop policy if exists "public update product photos" on storage.objects;
 drop policy if exists "authenticated update product photos" on storage.objects;
-create policy "public update product photos" on storage.objects
+create policy "authenticated update product photos" on storage.objects
   for update
-  to public
+  to authenticated
   using (bucket_id = 'product-photos');
 
+drop policy if exists "public delete product photos" on storage.objects;
 drop policy if exists "authenticated delete product photos" on storage.objects;
-create policy "public delete product photos" on storage.objects
+create policy "authenticated delete product photos" on storage.objects
   for delete
-  to public
+  to authenticated
   using (bucket_id = 'product-photos');

@@ -21,8 +21,25 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
+  // O link do e-mail volta para /redefinir-senha, onde a pessoa escolhe a nova senha.
+  const resetPassword = (email) =>
+    supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/redefinir-senha`,
+    })
+
+  const updatePassword = (password) => supabase.auth.updateUser({ password })
+
   return (
-    <AuthContext.Provider value={{ session, loading: session === undefined, signIn, signOut }}>
+    <AuthContext.Provider
+      value={{
+        session,
+        loading: session === undefined,
+        signIn,
+        signOut,
+        resetPassword,
+        updatePassword,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   )
