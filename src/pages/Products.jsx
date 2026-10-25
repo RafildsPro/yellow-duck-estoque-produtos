@@ -29,6 +29,7 @@ export default function Products() {
   const [stockOutProduct, setStockOutProduct] = useState(null)
   const [previewPhoto, setPreviewPhoto] = useState(null)
   const [showMultiSale, setShowMultiSale] = useState(false)
+  const [hoverPhoto, setHoverPhoto] = useState(null)
 
   const categories = useMemo(
     () => [...new Set(products.map((p) => p.category).filter(Boolean))].sort(),
@@ -48,6 +49,15 @@ export default function Products() {
         return 0
       })
   }, [products, search, category, sort])
+
+  // A tabela rola na horizontal (overflow), então o zoom é um elemento fixo fora dela.
+  function handlePhotoHover(e, url) {
+    const size = 288
+    const rect = e.currentTarget.getBoundingClientRect()
+    const left = Math.min(rect.right + 12, window.innerWidth - size - 12)
+    const top = Math.min(Math.max(rect.top + rect.height / 2 - size / 2, 12), window.innerHeight - size - 12)
+    setHoverPhoto({ url, left, top, size })
+  }
 
   function openNewForm() {
     setEditingProduct(null)
@@ -188,6 +198,8 @@ export default function Products() {
                       src={p.photo_url}
                       alt={p.name}
                       onClick={() => setPreviewPhoto(p.photo_url)}
+                      onMouseEnter={(e) => handlePhotoHover(e, p.photo_url)}
+                      onMouseLeave={() => setHoverPhoto(null)}
                       className="h-8 w-8 cursor-zoom-in rounded object-cover"
                     />
                   ) : (
@@ -276,6 +288,15 @@ export default function Products() {
           products={products}
           onClose={() => setShowMultiSale(false)}
           onConfirm={(product, qty, reason) => registerStockOut(product, qty, reason)}
+        />
+      )}
+
+      {hoverPhoto && !previewPhoto && (
+        <img
+          src={hoverPhoto.url}
+          alt=""
+          style={{ left: hoverPhoto.left, top: hoverPhoto.top, width: hoverPhoto.size, height: hoverPhoto.size }}
+          className="pointer-events-none fixed z-40 rounded-2xl border border-navy-600 bg-white object-contain shadow-2xl"
         />
       )}
 
