@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard'
 import Products from './pages/Products'
 import Vendas from './pages/Vendas'
 import Cardapio from './pages/Cardapio'
+import Vitrine from './pages/Vitrine'
 
 function App() {
   return (
@@ -20,6 +21,7 @@ function App() {
           <Route path="/produtos" element={<Products />} />
           <Route path="/vendas" element={<Vendas />} />
           <Route path="/cardapio" element={<Cardapio />} />
+          <Route path="/vitrine" element={<Vitrine />} />
         </Route>
       </Route>
     </Routes>

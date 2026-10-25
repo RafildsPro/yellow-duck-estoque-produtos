@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { LayoutDashboard, Package, History, FileText, LogOut } from 'lucide-react'
+import { LayoutDashboard, Package, History, FileText, Store, LogOut } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 
 const navItem =
@@ -56,6 +56,15 @@ export default function Layout() {
             >
               <FileText size={16} />
               Cardápio
+            </NavLink>
+            <NavLink
+              to="/vitrine"
+              className={({ isActive }) =>
+                `${navItem} ${isActive ? 'bg-gold-500/10 text-gold-500' : 'text-gray-300 hover:bg-navy-700'}`
+              }
+            >
+              <Store size={16} />
+              Vitrine
             </NavLink>
           </nav>
 

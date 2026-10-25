@@ -41,6 +41,14 @@ export function useProducts() {
     return data
   }
 
+  // Muda o status da Vitrine (hidden, visible, presale) de vários produtos de uma vez.
+  async function setStoreStatus(ids, status) {
+    const { error } = await supabase.from('products').update({ store_status: status }).in('id', ids)
+    if (error) throw error
+    const changed = new Set(ids)
+    setProducts((prev) => prev.map((p) => (changed.has(p.id) ? { ...p, store_status: status } : p)))
+  }
+
   async function deleteProduct(id) {
     const { error } = await supabase.from('products').delete().eq('id', id)
     if (error) throw error
@@ -68,6 +76,7 @@ export function useProducts() {
     refetch: fetchProducts,
     createProduct,
     updateProduct,
+    setStoreStatus,
     deleteProduct,
     registerStockOut,
   }

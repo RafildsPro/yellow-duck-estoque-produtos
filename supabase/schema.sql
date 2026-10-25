@@ -14,6 +14,8 @@ create table if not exists public.products (
   entry_date date not null default current_date,
   photo_url text,
   notes text,
+  -- o que vai para a Vitrine: hidden (oculto), visible (visível) ou presale (pré-venda)
+  store_status text not null default 'hidden' check (store_status in ('hidden', 'visible', 'presale')),
   created_by uuid references auth.users (id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
