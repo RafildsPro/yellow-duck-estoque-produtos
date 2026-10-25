@@ -7,7 +7,8 @@
 //   estoque NÃO é mexido (nem removido), do jeito que está.
 // - Marcar como "hidden" um produto que já está na Vitrine tira o item de lá.
 // - Visível que zera vira "esgotado". Pré-venda nunca é esgotado e aparece mesmo sem estoque.
-// - Campos feitos à mão na Vitrine (novidade, ultimo, fotos escolhidas) são preservados.
+// - A etiqueta "Último!" é automática: liga com 1 unidade em estoque e desliga quando deixa de ser.
+// - Campos feitos à mão na Vitrine (novidade, fotos escolhidas) são preservados.
 import { SECTIONS, normalizeName, sectionKeyOf, splitLanguage } from '../src/lib/catalog.js'
 
 export const VITRINE_KEYS = SECTIONS.map((s) => s.key)
@@ -143,6 +144,12 @@ export function computeSync(products, files) {
         else item.prevenda = false
       }
 
+      const lastUnit = !presale && !soldOut && product.quantity === 1
+      if (lastUnit !== (item.ultimo === true)) {
+        notes.push(lastUnit ? 'etiqueta "Último!" ligada' : 'etiqueta "Último!" desligada')
+        item.ultimo = lastUnit
+      }
+
       // Se a linha certa mudou (ex.: Lorcana ganhou linha própria), leva o item para ela.
       // Nunca rebaixa para "Outros": se o item está numa linha específica, foi escolha de quem monta a Vitrine.
       const targetKey = sectionKeyOf(product.name, product.category)
@@ -175,6 +182,7 @@ export function computeSync(products, files) {
     item.preco = product.sale_price
     if (product.photo_url) item.imagem = product.photo_url
     if (presale) item.prevenda = true
+    if (!presale && product.quantity === 1) item.ultimo = true
     created[key].push(item)
     changes.push({
       kind: 'novo',

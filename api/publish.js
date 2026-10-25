@@ -126,9 +126,15 @@ export default async function handler(req, res) {
 
     if (dryRun || result.files.length === 0) return send(res, 200, preview)
 
+    // A Vitrine mostra "Estoque atualizado em ..." a partir deste arquivo. Só é gravado junto com
+    // alguma mudança real, nunca sozinho.
+    const stamp = {
+      path: 'atualizado.json',
+      text: JSON.stringify({ atualizadoEm: new Date().toISOString() }, null, 2),
+    }
     const commit = await github.commit({
       headSha,
-      files: result.files,
+      files: [...result.files, stamp],
       message: `Atualiza vitrine a partir do estoque (${result.files.length} ${
         result.files.length === 1 ? 'arquivo' : 'arquivos'
       })`,
