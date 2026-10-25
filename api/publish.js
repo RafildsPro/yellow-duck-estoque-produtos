@@ -54,6 +54,15 @@ async function loadProducts(url, anonKey, bearer) {
 }
 
 export default async function handler(req, res) {
+  // Estado da configuração, para a tela avisar se falta o token. Não devolve o token.
+  if (req.method === 'GET') {
+    return send(res, 200, {
+      ok: true,
+      tokenConfigured: Boolean(process.env.VITRINE_GITHUB_TOKEN),
+      repo: REPO,
+      branch: BRANCH,
+    })
+  }
   if (req.method !== 'POST') return send(res, 405, { ok: false, error: 'Use POST.' })
 
   const url = process.env.VITE_SUPABASE_URL

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { ExternalLink, Search, Send, TriangleAlert } from 'lucide-react'
 import { useProducts } from '../hooks/useProducts'
 import { supabase } from '../lib/supabase'
@@ -42,6 +42,21 @@ async function callPublish(dryRun) {
     .catch(() => ({ ok: false, error: `Resposta inesperada do servidor (${response.status}).` }))
 }
 
+function TokenSteps() {
+  return (
+    <ol className="mt-2 list-decimal space-y-1 pl-5 text-gray-300">
+      <li>
+        No GitHub: Settings → Developer settings → Fine-grained tokens → criar um token só para o
+        repositório <code>yellow-vitrine</code>, com permissão <b>Contents: Read and write</b>.
+      </li>
+      <li>
+        No Vercel (projeto do estoque): Settings → Environment Variables → criar{' '}
+        <code>VITRINE_GITHUB_TOKEN</code> com esse token e fazer um novo deploy.
+      </li>
+    </ol>
+  )
+}
+
 function Chip({ label, value }) {
   return (
     <div className="rounded-xl border border-navy-700 bg-navy-800 px-4 py-2">
@@ -63,6 +78,14 @@ export default function Vitrine() {
   const [preview, setPreview] = useState(null)
   const [published, setPublished] = useState(null)
   const [failure, setFailure] = useState(null)
+  const [config, setConfig] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/publish')
+      .then((response) => response.json())
+      .then(setConfig)
+      .catch(() => setConfig(null))
+  }, [])
 
   // Sem a coluna no banco o campo nem vem nos produtos.
   const missingColumn = products.length > 0 && !('store_status' in products[0])
@@ -213,22 +236,20 @@ export default function Vitrine() {
           )}
         </div>
 
+        {config?.tokenConfigured && (
+          <p className="text-xs text-green-400">Token do GitHub configurado. Pronto para publicar em {config.repo}.</p>
+        )}
+        {config && !config.tokenConfigured && (
+          <div className="rounded-xl border border-gold-600/40 bg-gold-500/10 p-3 text-sm text-gold-400">
+            <p>Falta o token do GitHub para publicar. Dá para ver a prévia, mas não gravar.</p>
+            <TokenSteps />
+          </div>
+        )}
+
         {failure && (
           <div className="rounded-xl border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-300">
             <p>{failure.error}</p>
-            {failure.code === 'no_token' && (
-              <ol className="mt-2 list-decimal space-y-1 pl-5 text-gray-300">
-                <li>
-                  No GitHub: Settings → Developer settings → Fine-grained tokens → criar um token só
-                  para o repositório <code>yellow-vitrine</code>, com permissão{' '}
-                  <b>Contents: Read and write</b>.
-                </li>
-                <li>
-                  No Vercel (projeto do estoque): Settings → Environment Variables → criar{' '}
-                  <code>VITRINE_GITHUB_TOKEN</code> com esse token e fazer um novo deploy.
-                </li>
-              </ol>
-            )}
+            {failure.code === 'no_token' && <TokenSteps />}
           </div>
         )}
 
