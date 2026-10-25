@@ -19,6 +19,7 @@ export const SECTIONS = [
   { key: 'blister-quadruplo', title: 'Blisters Quádruplos' },
   { key: 'box', title: 'Boxes' },
   { key: 'mini-tin', title: 'Mini Latas' },
+  { key: 'lorcana', title: 'Lorcana' },
   { key: 'outros', title: 'Outros' },
 ]
 
@@ -31,6 +32,7 @@ const SECTION_PREFIXES = [
   ['Blister Triplo', 'blister-triplo'],
   ['Blister Quádruplo', 'blister-quadruplo'],
   ['Box', 'box'],
+  ['Coleção Ilustração', 'box'],
   ['Mini Lata', 'mini-tin'],
 ]
 
@@ -51,7 +53,9 @@ export function splitLanguage(name) {
   return { language, rest: language ? match[2].trim() : String(name).trim() }
 }
 
-export function sectionKeyOf(name) {
+// A categoria "Lorcana" vale mais que o nome: os kits e decks de Lorcana não seguem o padrão dos Pokémon.
+export function sectionKeyOf(name, category = '') {
+  if (normalizeName(category) === 'lorcana') return 'lorcana'
   const { rest } = splitLanguage(name)
   const normalized = normalizeName(rest)
   for (const [prefix, key] of SECTION_PREFIXES) {
@@ -69,7 +73,7 @@ export function displayName(name) {
 
 export function groupBySection(products) {
   const groups = new Map(SECTIONS.map((s) => [s.key, []]))
-  for (const p of products) groups.get(sectionKeyOf(p.name)).push(p)
+  for (const p of products) groups.get(sectionKeyOf(p.name, p.category)).push(p)
   return SECTIONS.map((section) => ({ ...section, items: groups.get(section.key) })).filter(
     (g) => g.items.length > 0
   )

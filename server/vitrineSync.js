@@ -143,6 +143,15 @@ export function computeSync(products, files) {
         else item.prevenda = false
       }
 
+      // Se a linha certa mudou (ex.: Lorcana ganhou linha própria), leva o item para ela.
+      // Nunca rebaixa para "Outros": se o item está numa linha específica, foi escolha de quem monta a Vitrine.
+      const targetKey = sectionKeyOf(product.name, product.category)
+      if (targetKey !== 'outros' && match.file.key !== targetKey) {
+        removed.add(item)
+        created[targetKey].push(item)
+        notes.push(`movido para ${SECTION_TITLE[targetKey]}`)
+      }
+
       const hasImage = Boolean(item.imagens?.length || item.imagem)
       if (product.photo_url && (!hasImage || (isAbsoluteUrl(item.imagem) && item.imagem !== product.photo_url))) {
         item.imagem = product.photo_url
@@ -160,7 +169,7 @@ export function computeSync(products, files) {
     }
 
     const { language } = splitLanguage(product.name)
-    const key = sectionKeyOf(product.name)
+    const key = sectionKeyOf(product.name, product.category)
     const item = { nome: product.name, edicao: fallbackEdition(product) }
     if (language) item.lingua = language.code
     item.preco = product.sale_price
