@@ -5,6 +5,25 @@ import { groupBySection } from '../lib/catalog'
 import { loadImageAsJpegDataUrl } from '../lib/image'
 import { buildMenuPdf } from '../lib/menuPdf'
 
+const STORAGE_KEY = 'cardapio-categorias-desmarcadas'
+
+// Lembra as categorias desmarcadas entre uma visita e outra; se o navegador bloquear, segue sem lembrar.
+function loadExcluded() {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(STORAGE_KEY)) ?? [])
+  } catch {
+    return new Set()
+  }
+}
+
+function saveExcluded(excluded) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([...excluded]))
+  } catch {
+    // sem armazenamento local, a escolha vale só para esta visita
+  }
+}
+
 function Toggle({ checked, onChange, label, hint }) {
   return (
     <label className="flex cursor-pointer items-start gap-3">
@@ -25,27 +44,52 @@ function Toggle({ checked, onChange, label, hint }) {
 export default function Cardapio() {
   const { products, loading, error } = useProducts()
   const [includePhotos, setIncludePhotos] = useState(true)
+  // Guarda as desmarcadas (não as marcadas) para que categorias novas já entrem no cardápio.
+  const [excluded, setExcluded] = useState(loadExcluded)
   const [generating, setGenerating] = useState(false)
   const [progress, setProgress] = useState(null)
   const [result, setResult] = useState('')
   const [failure, setFailure] = useState('')
 
-  // Só entra o que tem estoque. O PDF é público: só nome, categoria, preço de venda e foto
-  // saem daqui, o custo fica de fora.
+  const inStock = useMemo(() => products.filter((p) => p.quantity > 0), [products])
+
+  const categories = useMemo(() => {
+    const counts = new Map()
+    for (const p of inStock) counts.set(p.category || '', (counts.get(p.category || '') || 0) + 1)
+    return [...counts]
+      .map(([key, count]) => ({ key, label: key || 'Sem categoria', count }))
+      .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR'))
+  }, [inStock])
+
+  // Só entra o que tem estoque e está numa categoria marcada. O PDF é público: só nome,
+  // categoria, preço de venda e foto saem daqui, o custo e a quantidade ficam de fora.
   const menuProducts = useMemo(
     () =>
-      products
-        .filter((p) => p.quantity > 0)
+      inStock
+        .filter((p) => !excluded.has(p.category || ''))
         .map((p) => ({
           name: p.name,
           category: p.category,
           sale_price: p.sale_price,
           photo_url: p.photo_url,
         })),
-    [products]
+    [inStock, excluded]
   )
 
   const sections = useMemo(() => groupBySection(menuProducts), [menuProducts])
+  const selectedCount = categories.filter((c) => !excluded.has(c.key)).length
+
+  function updateExcluded(next) {
+    setExcluded(next)
+    saveExcluded(next)
+  }
+
+  function toggleCategory(key) {
+    const next = new Set(excluded)
+    if (next.has(key)) next.delete(key)
+    else next.add(key)
+    updateExcluded(next)
+  }
 
   async function handleDownload() {
     setGenerating(true)
@@ -89,6 +133,44 @@ export default function Cardapio() {
           label="Incluir fotos"
           hint="Com fotos fica mais bonito. Sem fotos vira uma lista compacta, bem mais curta."
         />
+      </div>
+
+      <div className="rounded-2xl border border-navy-700 bg-navy-900 p-5">
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-gray-200">
+            Categorias <span className="font-normal text-gray-400">({selectedCount} de {categories.length} marcadas)</span>
+          </h2>
+          <div className="flex gap-3 text-sm">
+            <button
+              onClick={() => updateExcluded(new Set())}
+              className="text-gold-500 hover:text-gold-400"
+            >
+              Marcar todas
+            </button>
+            <button
+              onClick={() => updateExcluded(new Set(categories.map((c) => c.key)))}
+              className="text-gray-400 hover:text-gray-200"
+            >
+              Desmarcar todas
+            </button>
+          </div>
+        </div>
+        <ul className="mt-3 grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">
+          {categories.map((c) => (
+            <li key={c.key}>
+              <label className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm hover:bg-navy-800">
+                <input
+                  type="checkbox"
+                  checked={!excluded.has(c.key)}
+                  onChange={() => toggleCategory(c.key)}
+                  className="h-4 w-4 accent-gold-500"
+                />
+                <span className="flex-1 truncate text-gray-200">{c.label}</span>
+                <span className="text-xs text-gray-500">{c.count}</span>
+              </label>
+            </li>
+          ))}
+        </ul>
       </div>
 
       <div className="rounded-2xl border border-navy-700 bg-navy-900 p-5">
