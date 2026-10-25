@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { CONDITIONS } from '../lib/constants'
 import { compressImage } from '../lib/image'
+import { normalize } from '../lib/normalize'
 import Modal from './Modal'
 
 const emptyForm = {
@@ -15,7 +16,7 @@ const emptyForm = {
   notes: '',
 }
 
-export default function ProductForm({ product, onClose, onSave }) {
+export default function ProductForm({ product, categories = [], onClose, onSave }) {
   const isEditing = Boolean(product)
   const [form, setForm] = useState(
     product
@@ -40,6 +41,12 @@ export default function ProductForm({ product, onClose, onSave }) {
   function handleChange(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
+
+  // Categoria já existente que só difere na grafia (maiúscula, acento): evita criar variações.
+  const typedCategory = form.category.trim()
+  const similarCategory = typedCategory
+    ? categories.find((c) => c !== typedCategory && normalize(c) === normalize(typedCategory))
+    : null
 
   async function handlePhotoChange(e) {
     const file = e.target.files?.[0]
@@ -107,11 +114,30 @@ export default function ProductForm({ product, onClose, onSave }) {
           <div>
             <label className="mb-1 block text-sm text-gray-300">Categoria</label>
             <input
+              list="category-options"
+              autoComplete="off"
               value={form.category}
               onChange={(e) => handleChange('category', e.target.value)}
               placeholder="Opcional"
               className="w-full rounded-lg border border-navy-600 bg-navy-800 px-3 py-2 text-gray-100 outline-none focus:border-gold-500"
             />
+            <datalist id="category-options">
+              {categories.map((c) => (
+                <option key={c} value={c} />
+              ))}
+            </datalist>
+            {similarCategory && (
+              <p className="mt-1 text-xs text-gray-400">
+                Já existe “{similarCategory}”.{' '}
+                <button
+                  type="button"
+                  onClick={() => handleChange('category', similarCategory)}
+                  className="text-gold-500 hover:text-gold-400"
+                >
+                  Usar essa
+                </button>
+              </p>
+            )}
           </div>
           <div>
             <label className="mb-1 block text-sm text-gray-300">Condição</label>

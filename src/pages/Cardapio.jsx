@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FileDown } from 'lucide-react'
+import { FileDown, MessageCircle } from 'lucide-react'
 import { useProducts } from '../hooks/useProducts'
 import { groupBySection } from '../lib/catalog'
 import { loadImageAsJpegDataUrl } from '../lib/image'
@@ -24,6 +24,21 @@ function saveExcluded(excluded) {
   }
 }
 
+function downloadFile(file) {
+  const url = URL.createObjectURL(file)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = file.name
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+function pagesText(pages) {
+  return `${pages} ${pages === 1 ? 'página' : 'páginas'}`
+}
+
 function Toggle({ checked, onChange, label, hint }) {
   return (
     <label className="flex cursor-pointer items-start gap-3">
@@ -46,10 +61,12 @@ export default function Cardapio() {
   const [includePhotos, setIncludePhotos] = useState(true)
   // Guarda as desmarcadas (não as marcadas) para que categorias novas já entrem no cardápio.
   const [excluded, setExcluded] = useState(loadExcluded)
-  const [generating, setGenerating] = useState(false)
+  const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(null)
-  const [result, setResult] = useState('')
-  const [failure, setFailure] = useState('')
+  const [message, setMessage] = useState(null)
+  // PDF já montado com as opções atuais. O envio precisa sair logo após o toque do usuário,
+  // então depois de montado, baixar ou enviar de novo é instantâneo.
+  const [ready, setReady] = useState(null)
 
   const inStock = useMemo(() => products.filter((p) => p.quantity > 0), [products])
 
@@ -78,6 +95,7 @@ export default function Cardapio() {
 
   const sections = useMemo(() => groupBySection(menuProducts), [menuProducts])
   const selectedCount = categories.filter((c) => !excluded.has(c.key)).length
+  const optionsKey = JSON.stringify([includePhotos, [...excluded].sort(), menuProducts.length])
 
   function updateExcluded(next) {
     setExcluded(next)
@@ -91,30 +109,82 @@ export default function Cardapio() {
     updateExcluded(next)
   }
 
-  async function handleDownload() {
-    setGenerating(true)
+  async function generate() {
+    if (ready?.key === optionsKey) return ready
+    const { doc, pages, count } = await buildMenuPdf({
+      products: menuProducts,
+      includePhotos,
+      loadImage: loadImageAsJpegDataUrl,
+      onProgress: (done, total) => setProgress({ done, total }),
+    })
+    const file = new File(
+      [doc.output('blob')],
+      `cardapio-yellow-duck-${new Date().toISOString().slice(0, 10)}.pdf`,
+      { type: 'application/pdf' }
+    )
+    const next = { file, pages, count, key: optionsKey }
+    setReady(next)
+    return next
+  }
+
+  async function run(action) {
+    setBusy(true)
     setProgress(null)
-    setResult('')
-    setFailure('')
+    setMessage(null)
     try {
-      const { doc, pages, count } = await buildMenuPdf({
-        products: menuProducts,
-        includePhotos,
-        loadImage: loadImageAsJpegDataUrl,
-        onProgress: (done, total) => setProgress({ done, total }),
-      })
-      doc.save(`cardapio-yellow-duck-${new Date().toISOString().slice(0, 10)}.pdf`)
-      setResult(`PDF gerado: ${count} produtos em ${pages} ${pages === 1 ? 'página' : 'páginas'}.`)
+      await action()
     } catch (err) {
-      setFailure(err.message || 'Não foi possível gerar o PDF.')
+      setMessage({ kind: 'error', text: err.message || 'Não foi possível gerar o PDF.' })
     } finally {
-      setGenerating(false)
+      setBusy(false)
       setProgress(null)
     }
   }
 
+  const handleDownload = () =>
+    run(async () => {
+      const pdf = await generate()
+      downloadFile(pdf.file)
+      setMessage({ kind: 'ok', text: `PDF gerado: ${pdf.count} produtos em ${pagesText(pdf.pages)}.` })
+    })
+
+  const handleWhatsApp = () =>
+    run(async () => {
+      const pdf = await generate()
+      const text = `Olá! Segue o cardápio de produtos da Yellow Duck TCG (atualizado em ${new Date().toLocaleDateString('pt-BR')}).`
+      const shareData = { files: [pdf.file], title: 'Cardápio Yellow Duck TCG', text }
+
+      if (navigator.canShare?.(shareData)) {
+        try {
+          await navigator.share(shareData)
+          setMessage({ kind: 'ok', text: 'Cardápio enviado para o compartilhamento.' })
+          return
+        } catch (err) {
+          if (err.name === 'AbortError') return
+          if (err.name === 'NotAllowedError') {
+            // Montar o PDF demorou e o navegador já não considera o toque recente.
+            setMessage({
+              kind: 'ok',
+              text: 'PDF pronto. Toque em "Enviar pelo WhatsApp" de novo para escolher a conversa.',
+            })
+            return
+          }
+          // Qualquer outro erro do compartilhamento cai no plano B abaixo.
+        }
+      }
+
+      downloadFile(pdf.file)
+      setMessage({
+        kind: 'ok',
+        text: 'Este aparelho não envia o PDF direto, então ele foi baixado. Abra o WhatsApp e anexe o arquivo na conversa.',
+        whatsappText: text,
+      })
+    })
+
   if (loading) return <p className="text-gray-400">Carregando produtos...</p>
   if (error) return <p className="text-red-400">Erro ao carregar dados: {error}</p>
+
+  const disabled = busy || menuProducts.length === 0
 
   return (
     <div className="space-y-4">
@@ -138,7 +208,10 @@ export default function Cardapio() {
       <div className="rounded-2xl border border-navy-700 bg-navy-900 p-5">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-gray-200">
-            Categorias <span className="font-normal text-gray-400">({selectedCount} de {categories.length} marcadas)</span>
+            Categorias{' '}
+            <span className="font-normal text-gray-400">
+              ({selectedCount} de {categories.length} marcadas)
+            </span>
           </h2>
           <div className="flex gap-3 text-sm">
             <button
@@ -197,20 +270,45 @@ export default function Cardapio() {
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={handleDownload}
-          disabled={generating || menuProducts.length === 0}
+          disabled={disabled}
           className="flex items-center gap-2 rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-950 hover:bg-gold-400 disabled:opacity-50"
         >
           <FileDown size={16} />
-          {generating ? 'Gerando PDF...' : 'Baixar PDF'}
+          {busy ? 'Gerando PDF...' : 'Baixar PDF'}
         </button>
-        {generating && includePhotos && progress && (
+        <button
+          onClick={handleWhatsApp}
+          disabled={disabled}
+          className="flex items-center gap-2 rounded-lg border border-navy-600 px-4 py-2 text-sm font-semibold text-gray-100 hover:bg-navy-700 disabled:opacity-50"
+        >
+          <MessageCircle size={16} />
+          Enviar pelo WhatsApp
+        </button>
+        {busy && includePhotos && progress && (
           <span className="text-sm text-gray-400">
             Carregando fotos {progress.done}/{progress.total}
           </span>
         )}
-        {result && <span className="text-sm text-green-400">{result}</span>}
-        {failure && <span className="text-sm text-red-400">{failure}</span>}
       </div>
+
+      {message && (
+        <p className={`text-sm ${message.kind === 'error' ? 'text-red-400' : 'text-green-400'}`}>
+          {message.text}
+          {message.whatsappText && (
+            <>
+              {' '}
+              <a
+                href={`https://wa.me/?text=${encodeURIComponent(message.whatsappText)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-semibold text-gold-500 underline hover:text-gold-400"
+              >
+                Abrir o WhatsApp
+              </a>
+            </>
+          )}
+        </p>
+      )}
     </div>
   )
 }

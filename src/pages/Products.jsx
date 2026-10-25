@@ -272,7 +272,12 @@ export default function Products() {
       </div>
 
       {showForm && (
-        <ProductForm product={editingProduct} onClose={() => setShowForm(false)} onSave={handleSave} />
+        <ProductForm
+          product={editingProduct}
+          categories={categories}
+          onClose={() => setShowForm(false)}
+          onSave={handleSave}
+        />
       )}
 
       {stockOutProduct && (
