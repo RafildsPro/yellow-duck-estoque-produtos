@@ -7,6 +7,21 @@ const inputClass =
 
 const MIN_LENGTH = 8
 
+function passwordErrorText(error) {
+  switch (error.code) {
+    case 'same_password':
+      return 'A nova senha precisa ser diferente da senha atual.'
+    case 'weak_password':
+      return 'Essa senha é fraca demais. Use letras e números e evite senhas comuns.'
+    case 'session_not_found':
+    case 'session_expired':
+    case 'not_authenticated':
+      return 'Sua sessão expirou. Volte ao login e peça o link em "Esqueci minha senha".'
+    default:
+      return `Não foi possível salvar a senha. (${error.message})`
+  }
+}
+
 function Shell({ children }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-navy-950 px-4">
@@ -23,10 +38,12 @@ function Shell({ children }) {
 
 // O link do e-mail traz a pessoa para cá já com uma sessão de recuperação aberta pelo Supabase.
 export default function RedefinirSenha() {
-  const { session, loading, updatePassword } = useAuth()
+  const { session, loading, updatePassword, reauthenticate } = useAuth()
   const navigate = useNavigate()
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [needsCode, setNeedsCode] = useState(false)
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [done, setDone] = useState(false)
@@ -71,10 +88,31 @@ export default function RedefinirSenha() {
       return
     }
     setSaving(true)
-    const { error } = await updatePassword(password)
+    const { error } = await updatePassword(password, needsCode ? code.trim() : undefined)
+
+    const reauthError =
+      error && (error.code === 'reauthentication_needed' || /reauthenticat/i.test(error.message))
+
+    if (reauthError && !needsCode) {
+      // O login não é recente: o Supabase manda um código por e-mail para confirmar que é a própria pessoa.
+      const { error: sendError } = await reauthenticate()
+      setSaving(false)
+      setNeedsCode(true)
+      setError(
+        sendError
+          ? 'Não foi possível enviar o código por e-mail agora. Espere alguns minutos e tente de novo.'
+          : 'Por segurança, enviamos um código de 6 dígitos para o seu e-mail. Digite o código abaixo e salve de novo.'
+      )
+      return
+    }
+
     setSaving(false)
     if (error) {
-      setError('Não foi possível salvar a senha. Peça um novo link e tente de novo.')
+      setError(
+        needsCode && (reauthError || /nonce|otp|token/i.test(error.message))
+          ? 'Código inválido ou vencido. Confira o e-mail mais recente.'
+          : passwordErrorText(error)
+      )
       return
     }
     setDone(true)
@@ -116,6 +154,21 @@ export default function RedefinirSenha() {
             className={inputClass}
           />
         </div>
+
+        {needsCode && (
+          <div>
+            <label className="mb-1 block text-sm text-gray-300">Código enviado por e-mail</label>
+            <input
+              required
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              value={code}
+              onChange={(e) => setCode(e.target.value)}
+              className={inputClass}
+              placeholder="000000"
+            />
+          </div>
+        )}
 
         {error && <p className="text-sm text-red-400">{error}</p>}
 

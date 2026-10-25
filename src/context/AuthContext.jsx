@@ -27,7 +27,11 @@ export function AuthProvider({ children }) {
       redirectTo: `${window.location.origin}/redefinir-senha`,
     })
 
-  const updatePassword = (password) => supabase.auth.updateUser({ password })
+  // Se o login não for recente, o Supabase pede um código de confirmação enviado por e-mail.
+  const reauthenticate = () => supabase.auth.reauthenticate()
+
+  const updatePassword = (password, nonce) =>
+    supabase.auth.updateUser(nonce ? { password, nonce } : { password })
 
   return (
     <AuthContext.Provider
@@ -37,6 +41,7 @@ export function AuthProvider({ children }) {
         signIn,
         signOut,
         resetPassword,
+        reauthenticate,
         updatePassword,
       }}
     >
