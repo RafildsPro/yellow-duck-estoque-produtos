@@ -31,6 +31,13 @@ export function addDays(iso, days) {
 
 export const monthStart = (iso) => `${iso.slice(0, 8)}01`
 
+// Último dia do mês de uma data ("2026-11-03" -> "2026-11-30").
+export function monthEnd(iso) {
+  const year = Number(iso.slice(0, 4))
+  const month = Number(iso.slice(5, 7))
+  return new Date(Date.UTC(year, month, 0)).toISOString().slice(0, 10)
+}
+
 export function eachDay(from, to) {
   const days = []
   for (let day = from; day <= to; day = addDays(day, 1)) days.push(day)

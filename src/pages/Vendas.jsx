@@ -13,6 +13,7 @@ import {
   dayLabel,
   groupByDay,
   hasNoCost,
+  monthEnd,
   monthLabel,
   periodRange,
   saleCost,
@@ -44,7 +45,9 @@ export default function Vendas() {
 
   const summary = useMemo(() => summarize(sales, today), [sales, today])
   const periodSales = useMemo(() => sales.filter((s) => s.sold_at >= from && s.sold_at <= to), [sales, from, to])
-  const series = useMemo(() => dailySeries(sales, from, to), [sales, from, to])
+  // No gráfico, "Este mês" mostra o mês inteiro (dias futuros vazios) para ver a barra subindo.
+  const chartTo = period === 'month' ? monthEnd(today) : to
+  const series = useMemo(() => dailySeries(sales, from, chartTo), [sales, from, chartTo])
   const periodTotal = series.reduce((sum, d) => sum + d.amount, 0)
   const bestDay = series.reduce((best, d) => (d.amount > best.amount ? d : best), { amount: 0 })
 
@@ -215,7 +218,7 @@ export default function Vendas() {
               </p>
             )}
             <div className="mt-1">
-              <SalesChart data={series} />
+              <SalesChart data={series} todayDate={today} />
             </div>
             <p className="mt-1 text-xs text-gray-500">Toque ou passe o mouse sobre um dia para ver o valor.</p>
           </div>

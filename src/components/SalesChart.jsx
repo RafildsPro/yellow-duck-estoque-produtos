@@ -4,43 +4,48 @@ import { shortDate } from '../lib/sales'
 
 const WIDTH = 640
 const HEIGHT = 220
-const PAD = { top: 16, right: 12, bottom: 28, left: 12 }
+const PAD = { top: 12, right: 8, bottom: 28, left: 8 }
+const MIN_BAR = 2
+const MAX_BAR_WIDTH = 34
 
-// Gráfico de linha do faturamento por dia. `data`: [{ date, amount, count }].
-export default function SalesChart({ data }) {
+// Gráfico de barras do faturamento por dia. `data`: [{ date, amount, count }].
+// Dias depois de `todayDate` (o resto do mês) aparecem como um traço fraco, sem valor.
+export default function SalesChart({ data, todayDate }) {
   const [active, setActive] = useState(null)
 
-  const { points, max, path, area } = useMemo(() => {
+  const { bars, max, slot } = useMemo(() => {
     const innerWidth = WIDTH - PAD.left - PAD.right
     const innerHeight = HEIGHT - PAD.top - PAD.bottom
     const peak = Math.max(...data.map((d) => d.amount), 0)
     const top = peak > 0 ? peak : 1
-    const step = data.length > 1 ? innerWidth / (data.length - 1) : 0
-    const pts = data.map((d, i) => ({
-      ...d,
-      x: data.length > 1 ? PAD.left + i * step : PAD.left + innerWidth / 2,
-      y: PAD.top + innerHeight - (d.amount / top) * innerHeight,
-    }))
-    const line = pts.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
-    const baseline = PAD.top + innerHeight
-    const fill = pts.length
-      ? `${line} L${pts[pts.length - 1].x.toFixed(1)},${baseline} L${pts[0].x.toFixed(1)},${baseline} Z`
-      : ''
-    return { points: pts, max: peak, path: line, area: fill }
-  }, [data])
+    const slotWidth = data.length ? innerWidth / data.length : innerWidth
+    const barWidth = Math.min(MAX_BAR_WIDTH, Math.max(2, slotWidth * (data.length > 45 ? 0.75 : 0.62)))
+    const list = data.map((d, i) => {
+      const height = d.amount > 0 ? Math.max(3, (d.amount / top) * innerHeight) : MIN_BAR
+      return {
+        ...d,
+        future: Boolean(todayDate) && d.date > todayDate,
+        x: PAD.left + i * slotWidth + (slotWidth - barWidth) / 2,
+        width: barWidth,
+        height,
+        y: PAD.top + innerHeight - height,
+        center: PAD.left + i * slotWidth + slotWidth / 2,
+      }
+    })
+    return { bars: list, max: peak, slot: slotWidth }
+  }, [data, todayDate])
 
   function handlePointer(e) {
     const rect = e.currentTarget.getBoundingClientRect()
     const x = ((e.clientX - rect.left) / rect.width) * WIDTH
-    let nearest = 0
-    points.forEach((p, i) => {
-      if (Math.abs(p.x - x) < Math.abs(points[nearest].x - x)) nearest = i
-    })
-    setActive(nearest)
+    const index = Math.min(bars.length - 1, Math.max(0, Math.floor((x - PAD.left) / slot)))
+    setActive(bars[index].future ? null : index)
   }
 
-  const current = active !== null ? points[active] : null
-  const gridY = [0, 0.5, 1].map((fraction) => PAD.top + (HEIGHT - PAD.top - PAD.bottom) * fraction)
+  const current = active !== null ? bars[active] : null
+  const bestIndex = max > 0 ? bars.findIndex((b) => b.amount === max) : -1
+  const lastIsFuture = bars.length > 0 && bars[bars.length - 1].future
+  const todayBar = lastIsFuture ? bars.filter((b) => !b.future).pop() : null
 
   return (
     <div className="relative">
@@ -53,38 +58,38 @@ export default function SalesChart({ data }) {
         onPointerDown={handlePointer}
         onPointerLeave={() => setActive(null)}
       >
-        <defs>
-          <linearGradient id="sales-area" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#f5c518" stopOpacity="0.35" />
-            <stop offset="100%" stopColor="#f5c518" stopOpacity="0" />
-          </linearGradient>
-        </defs>
-
-        {gridY.map((y, i) => (
-          <line key={i} x1={PAD.left} x2={WIDTH - PAD.right} y1={y} y2={y} stroke="#1f2740" strokeDasharray="4 6" />
+        {bars.map((bar, i) => (
+          <rect
+            key={bar.date}
+            x={bar.x}
+            y={bar.y}
+            width={bar.width}
+            height={bar.height}
+            rx={Math.min(4, bar.width / 2)}
+            fill={bar.future ? '#161d31' : bar.amount > 0 ? (i === active ? '#86efac' : '#4ade80') : '#1f2740'}
+            opacity={bar.amount > 0 && i !== bestIndex && active === null ? 0.85 : 1}
+          />
         ))}
 
-        <path d={area} fill="url(#sales-area)" />
-        <path d={path} fill="none" stroke="#f5c518" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
-
-        {points.map(
-          (p) =>
-            p.count > 0 && <circle key={p.date} cx={p.x} cy={p.y} r="3.5" fill="#f5c518" stroke="#0a0e1a" strokeWidth="1.5" />
-        )}
-
-        {current && (
-          <>
-            <line x1={current.x} x2={current.x} y1={PAD.top} y2={HEIGHT - PAD.bottom} stroke="#2b3552" />
-            <circle cx={current.x} cy={current.y} r="5" fill="#ffe066" stroke="#0a0e1a" strokeWidth="2" />
-          </>
-        )}
-
         <text x={PAD.left} y={HEIGHT - 8} fontSize="12" fill="#6b7280">
-          {points.length ? shortDate(points[0].date) : ''}
+          {bars.length ? shortDate(bars[0].date) : ''}
         </text>
-        <text x={WIDTH - PAD.right} y={HEIGHT - 8} fontSize="12" fill="#6b7280" textAnchor="end">
-          {points.length > 1 ? 'hoje' : ''}
-        </text>
+        {lastIsFuture ? (
+          <>
+            {todayBar && (
+              <text x={todayBar.center} y={HEIGHT - 8} fontSize="12" fill="#f5c518" textAnchor="middle">
+                hoje
+              </text>
+            )}
+            <text x={WIDTH - PAD.right} y={HEIGHT - 8} fontSize="12" fill="#6b7280" textAnchor="end">
+              {shortDate(bars[bars.length - 1].date)}
+            </text>
+          </>
+        ) : (
+          <text x={WIDTH - PAD.right} y={HEIGHT - 8} fontSize="12" fill="#6b7280" textAnchor="end">
+            {bars.length > 1 ? 'hoje' : ''}
+          </text>
+        )}
       </svg>
 
       {max === 0 && (
@@ -96,12 +101,12 @@ export default function SalesChart({ data }) {
       {current && (
         <div
           className="pointer-events-none absolute top-0 -translate-x-1/2 rounded-lg border border-navy-600 bg-navy-950 px-3 py-1.5 text-center text-xs shadow-lg"
-          style={{ left: `${Math.min(Math.max((current.x / WIDTH) * 100, 12), 88)}%` }}
+          style={{ left: `${Math.min(Math.max((current.center / WIDTH) * 100, 12), 88)}%` }}
         >
           <p className="text-gray-400">
             {shortDate(current.date)} · {current.count} {current.count === 1 ? 'venda' : 'vendas'}
           </p>
-          <p className="font-semibold text-gold-500">{formatBRL(current.amount)}</p>
+          <p className="font-semibold text-green-400">{formatBRL(current.amount)}</p>
         </div>
       )}
     </div>
