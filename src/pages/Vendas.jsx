@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Download, Handshake, Laptop, Package, Search, Trash2, TriangleAlert } from 'lucide-react'
+import { Download, Handshake, Layers, Package, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { useProducts } from '../hooks/useProducts'
 import { useSales } from '../hooks/useSales'
 import { useStockMovements } from '../hooks/useStockMovements'
@@ -26,7 +26,7 @@ import {
 import RegisterSaleModal from '../components/RegisterSaleModal'
 import SalesChart from '../components/SalesChart'
 
-const KIND_ICONS = { product: Package, service: Laptop, commission: Handshake }
+const KIND_ICONS = { product: Package, service: Layers, commission: Handshake }
 
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
@@ -67,8 +67,8 @@ export default function Vendas() {
 
   const month = summary.month
   const marginPct = month.amount > 0 ? Math.round((month.profit / month.amount) * 100) : 0
-  const productSalesInMonth = summary.productSales
-  const costedSales = productSalesInMonth - month.withoutCost
+  const costSalesInMonth = summary.costSales
+  const costedSales = costSalesInMonth - month.withoutCost
   const oldMovements = useMemo(() => movements.filter((m) => !m.sale_id).slice(0, 200), [movements])
 
   async function handleRegister(payload) {
@@ -159,10 +159,10 @@ export default function Vendas() {
               <p className="mt-2 text-sm text-gray-400">
                 {marginPct}% do faturamento, depois do custo dos produtos.
               </p>
-              {productSalesInMonth > 0 && (
+              {costSalesInMonth > 0 && (
                 <p className={`mt-1 text-xs ${month.withoutCost > 0 ? 'text-gold-500' : 'text-gray-500'}`}>
-                  custo dos produtos <b>{formatBRL(month.cost)}</b> · {costedSales} de {productSalesInMonth}{' '}
-                  {productSalesInMonth === 1 ? 'venda' : 'vendas'} de produto com custo cadastrado
+                  custos <b>{formatBRL(month.cost)}</b> · {costedSales} de {costSalesInMonth}{' '}
+                  {costSalesInMonth === 1 ? 'venda' : 'vendas'} com custo informado
                 </p>
               )}
             </div>
@@ -271,7 +271,9 @@ export default function Vendas() {
                             <div className="flex-shrink-0 text-right">
                               <p className="text-sm font-bold text-green-400">+ {formatBRL(sale.amount)}</p>
                               {hasNoCost(sale) ? (
-                                <p className="text-xs text-gold-500">sem custo cadastrado</p>
+                                <p className="text-xs text-gold-500">
+                                  {sale.kind === 'service' ? 'sem custo informado' : 'sem custo cadastrado'}
+                                </p>
                               ) : (
                                 <p className="text-xs text-gray-500">
                                   sobrou <b className="text-green-400">{formatBRL(saleProfit(sale))}</b>

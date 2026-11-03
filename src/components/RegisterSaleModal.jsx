@@ -28,6 +28,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
   const [gross, setGross] = useState('')
   const [grossTouched, setGrossTouched] = useState(false)
   const [discount, setDiscount] = useState('')
+  const [paid, setPaid] = useState('') // carta avulsa: quanto você pagou na carta (opcional)
   const [channel, setChannel] = useState('WhatsApp')
   const [account, setAccount] = useState('')
   const [soldAt, setSoldAt] = useState(() => todayISO())
@@ -66,7 +67,14 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
   const grossOk = Number.isFinite(grossNum) && grossNum > 0
   const discountOk = Number.isFinite(discountNum) && discountNum >= 0
   const net = allowsDiscount && discountOk ? amountAfterDiscount(grossNum, discountNum) : grossNum
-  const cost = kind === 'product' && product ? Number(product.cost_price) * (qty > 0 ? qty : 0) : 0
+  const paidNum = paid.trim() === '' ? 0 : parseMoney(paid)
+  const paidOk = Number.isFinite(paidNum) && paidNum >= 0
+  const cost =
+    kind === 'product' && product
+      ? Number(product.cost_price) * (qty > 0 ? qty : 0)
+      : kind === 'service' && paidOk
+        ? paidNum
+        : 0
   const profit = net - cost
 
   async function handleSubmit(e) {
@@ -78,8 +86,9 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
       if (!(qty >= 1)) return setError('A quantidade precisa ser de pelo menos 1.')
       if (qty > product.quantity) return setError(`Só há ${product.quantity} unidade(s) em estoque.`)
     } else if (!description.trim()) {
-      return setError('Descreva a venda.')
+      return setError(kind === 'service' ? 'Informe o nome da carta.' : 'Descreva a venda.')
     }
+    if (kind === 'service' && !paidOk) return setError('O valor pago na carta não é válido.')
     if (!grossOk) return setError('Informe quanto você recebeu.')
     if (!discountOk) return setError('O desconto não é um valor válido.')
     if (allowsDiscount && discountNum > grossNum) return setError('O desconto não pode ser maior que o valor.')
@@ -96,6 +105,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
         quantity: kind === 'product' ? qty : 1,
         description: kind === 'product' ? null : description.trim(),
         amount: net,
+        unitCost: kind === 'service' ? paidNum : null,
         discount: allowsDiscount ? discountNum : 0,
         channel,
         account: account.trim() || null,
@@ -133,7 +143,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
           {kind === 'product'
             ? 'Produto do estoque: ao registrar, ele dá baixa no estoque e entra no faturamento.'
             : kind === 'service'
-              ? 'Serviço ou produto digital: não mexe no estoque.'
+              ? 'Carta fora do estoque: não dá baixa em nenhum produto, mas entra no faturamento.'
               : 'Comissão de uma venda feita para outra pessoa: entra no faturamento só o que você recebeu.'}
         </p>
 
@@ -156,12 +166,12 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
         ) : (
           <div>
             <label className={labelClass}>
-              {kind === 'service' ? 'O que você vendeu?' : 'Qual venda gerou a comissão?'}
+              {kind === 'service' ? 'Qual carta você vendeu?' : 'Qual venda gerou a comissão?'}
             </label>
             <input
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder={kind === 'service' ? 'Ex: consultoria, curso, assinatura...' : 'Ex: consultoria do cliente João'}
+              placeholder={kind === 'service' ? 'Ex: Charizard ex 125/094 · NM' : 'Ex: consultoria do cliente João'}
               className={inputClass}
               autoFocus
             />
@@ -213,7 +223,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
               />
             </div>
           )}
-          <div className={kind === 'product' ? '' : 'col-span-2'}>
+          <div className={kind === 'commission' ? 'col-span-2' : ''}>
             <label className={labelClass}>
               {kind === 'commission' ? 'Quanto você recebeu de comissão?' : 'Quanto você recebeu?'}
             </label>
@@ -234,6 +244,22 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
               <p className="mt-1 text-xs text-gray-500">calculado pela porcentagem</p>
             )}
           </div>
+          {kind === 'service' && (
+            <div>
+              <label className={labelClass}>
+                Quanto você pagou?
+                <Optional />
+              </label>
+              <input
+                value={paid}
+                onChange={(e) => setPaid(e.target.value)}
+                inputMode="decimal"
+                placeholder="0,00"
+                className={inputClass}
+              />
+              <p className="mt-1 text-xs text-gray-500">o que a carta custou para você</p>
+            </div>
+          )}
         </div>
 
         {allowsDiscount && (
@@ -312,7 +338,9 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
           <p className="text-sm text-gray-400">
             desta venda sobra{' '}
             <b className={profit >= 0 ? 'text-green-400' : 'text-red-400'}>{formatBRL(profit)}</b>{' '}
-            <span className="text-gray-500">({kind === 'product' ? 'recebido − custo' : 'valor recebido'})</span>
+            <span className="text-gray-500">
+              ({kind === 'product' ? 'recebido − custo' : kind === 'service' && cost > 0 ? 'recebido − o que você pagou' : 'valor recebido'})
+            </span>
           </p>
         )}
 

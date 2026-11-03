@@ -3,11 +3,12 @@ const TIME_ZONE = 'America/Sao_Paulo'
 
 export const SALE_KINDS = {
   product: { label: 'Produto físico', short: 'Venda' },
-  service: { label: 'Serviço ou digital', short: 'Serviço' },
+  // No banco o tipo continua "service"; na tela é a carta avulsa (fora do estoque).
+  service: { label: 'Carta Avulsa', short: 'Carta avulsa' },
   commission: { label: 'Comissão', short: 'Comissão' },
 }
 
-export const CHANNELS = ['WhatsApp', 'Presencial', 'Instagram', 'Mercado Livre', 'Outro']
+export const CHANNELS = ['WhatsApp', 'Presencial', 'Instagram', 'Liga Pokémon', 'Mercado Livre', 'Outro']
 
 export const PERIODS = [
   { key: 'month', label: 'Este mês' },
@@ -80,8 +81,9 @@ export const saleCost = (sale) => round2(Number(sale.unit_cost) * Number(sale.qu
 // O que sobrou: recebido − taxa − custo dos produtos.
 export const saleProfit = (sale) => round2(Number(sale.amount) - Number(sale.fee) - saleCost(sale))
 
-// Produto vendido com custo 0 não tem custo cadastrado: o "sobrou" dele não é confiável.
-export const hasNoCost = (sale) => sale.kind === 'product' && Number(sale.unit_cost) === 0
+// Produto ou carta avulsa com custo 0: sem custo, o "sobrou" dela não é confiável.
+export const hasNoCost = (sale) =>
+  (sale.kind === 'product' || sale.kind === 'service') && Number(sale.unit_cost) === 0
 
 function totals(sales) {
   let amount = 0
@@ -108,7 +110,8 @@ export function summarize(sales, today) {
     yesterday: totals(sales.filter((s) => s.sold_at === yesterday)),
     month,
     averagePerDay: round2(month.amount / dayOfMonth),
-    productSales: inMonth.filter((s) => s.kind === 'product').length,
+    // vendas em que o custo importa (produto e carta avulsa; comissão não tem custo)
+    costSales: inMonth.filter((s) => s.kind === 'product' || s.kind === 'service').length,
   }
 }
 

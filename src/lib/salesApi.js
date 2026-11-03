@@ -25,7 +25,7 @@ export async function registerSaleRpc(sale) {
     p_sold_at: sale.soldAt ?? null,
     p_base_amount: sale.baseAmount ?? null,
     p_commission_pct: sale.commissionPct ?? null,
-    p_unit_cost: null,
+    p_unit_cost: sale.unitCost ?? null, // só vale para carta avulsa; produto usa o custo do cadastro
     p_notes: sale.notes ?? null,
   })
   if (error) throw new Error(friendly(error))
