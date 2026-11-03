@@ -1,7 +1,8 @@
 import { useState } from 'react'
 import Modal from './Modal'
 
-const QUICK_REASONS = ['Venda Local', 'Venda Online', 'Troca', 'Perda/Dano']
+// Baixa que NÃO é venda (vendas ficam na aba Vendas e entram no faturamento).
+const QUICK_REASONS = ['Perda/Dano', 'Troca', 'Acerto de estoque']
 
 export default function StockOutModal({ product, onClose, onConfirm }) {
   const [quantity, setQuantity] = useState(1)
@@ -29,12 +30,14 @@ export default function StockOutModal({ product, onClose, onConfirm }) {
   }
 
   return (
-    <Modal title={`Registrar saída — ${product.name}`} onClose={onClose} maxWidth="max-w-sm">
+    <Modal title={`Baixa de estoque — ${product.name}`} onClose={onClose} maxWidth="max-w-sm">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <p className="text-sm text-gray-400">Estoque atual: {product.quantity} un.</p>
+        <p className="text-sm text-gray-400">
+          Estoque atual: {product.quantity} un. Para perda, troca ou ajuste. Para vendas, use a aba Vendas.
+        </p>
 
         <div>
-          <label className="mb-1 block text-sm text-gray-300">Quantidade vendida/retirada</label>
+          <label className="mb-1 block text-sm text-gray-300">Quantidade retirada</label>
           <input
             type="number"
             min="1"
@@ -66,7 +69,7 @@ export default function StockOutModal({ product, onClose, onConfirm }) {
           <input
             value={reason}
             onChange={(e) => setReason(e.target.value)}
-            placeholder="Ex: venda balcão, venda online..."
+            placeholder="Ex: caiu e amassou, troca com cliente..."
             className="w-full rounded-lg border border-navy-600 bg-navy-800 px-3 py-2 text-gray-100 outline-none focus:border-gold-500"
           />
         </div>
@@ -82,7 +85,7 @@ export default function StockOutModal({ product, onClose, onConfirm }) {
             disabled={saving}
             className="rounded-lg bg-gold-500 px-4 py-2 text-sm font-semibold text-navy-950 hover:bg-gold-400 disabled:opacity-60"
           >
-            {saving ? 'Registrando...' : 'Confirmar saída'}
+            {saving ? 'Registrando...' : 'Confirmar baixa'}
           </button>
         </div>
       </form>

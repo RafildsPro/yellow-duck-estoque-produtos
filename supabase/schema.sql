@@ -100,3 +100,5 @@ create policy "authenticated delete product photos" on storage.objects
   for delete
   to authenticated
   using (bucket_id = 'product-photos');
+
+-- Vendas (produto físico, serviço e comissão): depois deste script, rode também supabase/vendas.sql.

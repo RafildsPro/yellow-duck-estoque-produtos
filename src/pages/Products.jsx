@@ -5,6 +5,8 @@ import { LOW_STOCK_THRESHOLD } from '../lib/constants'
 import { formatBRL } from '../lib/format'
 import { normalize } from '../lib/normalize'
 import { downloadCSV } from '../lib/csv'
+import { todayISO } from '../lib/sales'
+import { registerSaleRpc } from '../lib/salesApi'
 import ProductForm from '../components/ProductForm'
 import StockOutModal from '../components/StockOutModal'
 import MultiSaleModal from '../components/MultiSaleModal'
@@ -18,7 +20,7 @@ const SORT_OPTIONS = [
 ]
 
 export default function Products() {
-  const { products, loading, error, createProduct, updateProduct, deleteProduct, registerStockOut } =
+  const { products, loading, error, refetch, createProduct, updateProduct, deleteProduct, registerStockOut } =
     useProducts()
 
   const [search, setSearch] = useState('')
@@ -79,9 +81,32 @@ export default function Products() {
     await deleteProduct(product.id)
   }
 
+  // Vende 1 unidade pelo preço cadastrado e já entra no faturamento (aba Vendas).
   async function handleQuickSale(product) {
     if (product.quantity < 1) return
-    await registerStockOut(product, 1, 'Venda rápida')
+    try {
+      await registerSaleRpc({
+        kind: 'product',
+        productId: product.id,
+        quantity: 1,
+        amount: product.sale_price,
+        soldAt: todayISO(),
+      })
+      await refetch()
+    } catch (err) {
+      alert(err.message)
+    }
+  }
+
+  // Várias vendas de uma vez (cada produto vira uma venda). Se uma falhar, as anteriores já valem.
+  async function handleMultiSale(lines, { channel, soldAt }) {
+    try {
+      for (const line of lines) {
+        await registerSaleRpc({ kind: 'product', ...line, channel, soldAt })
+      }
+    } finally {
+      await refetch()
+    }
   }
 
   function handleExportCSV() {
@@ -237,7 +262,7 @@ export default function Products() {
                     </button>
                     <button
                       onClick={() => setStockOutProduct(p)}
-                      title="Registrar saída"
+                      title="Baixa de estoque (perda, troca, ajuste)"
                       className="rounded-lg p-2 text-gray-400 hover:bg-navy-700 hover:text-gold-500"
                     >
                       <PackageMinus size={16} />
@@ -292,7 +317,7 @@ export default function Products() {
         <MultiSaleModal
           products={products}
           onClose={() => setShowMultiSale(false)}
-          onConfirm={(product, qty, reason) => registerStockOut(product, qty, reason)}
+          onConfirm={handleMultiSale}
         />
       )}
 

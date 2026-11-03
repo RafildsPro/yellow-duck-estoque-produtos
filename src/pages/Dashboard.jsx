@@ -1,7 +1,11 @@
+import { useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { Wallet, TrendingUp, PiggyBank, Boxes, AlertTriangle } from 'lucide-react'
 import { useProducts } from '../hooks/useProducts'
+import { useSales } from '../hooks/useSales'
 import { formatBRL } from '../lib/format'
 import { LOW_STOCK_THRESHOLD } from '../lib/constants'
+import { monthLabel, summarize, todayISO } from '../lib/sales'
 
 function StatCard({ icon: Icon, label, value, accent }) {
   return (
@@ -37,8 +41,23 @@ function StockItem({ product, quantityClassName }) {
   )
 }
 
+function SalesCard({ label, value, children }) {
+  return (
+    <div className="rounded-2xl border border-navy-700 bg-navy-900 p-5">
+      <span className="text-sm text-gray-400">{label}</span>
+      <p className="mt-1 text-3xl font-bold text-green-400">{value}</p>
+      <p className="mt-2 text-sm text-gray-400">{children}</p>
+    </div>
+  )
+}
+
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
+
 export default function Dashboard() {
   const { products, loading, error } = useProducts()
+  const { sales, loading: salesLoading, missingSetup } = useSales()
+  const today = todayISO()
+  const summary = useMemo(() => summarize(sales, today), [sales, today])
 
   const totalSaleValue = products.reduce((sum, p) => sum + p.quantity * p.sale_price, 0)
   const totalCostValue = products.reduce((sum, p) => sum + p.quantity * p.cost_price, 0)
@@ -53,6 +72,26 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       <h1 className="text-xl font-semibold text-gray-100">Dashboard</h1>
+
+      {!salesLoading && !missingSetup && (
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <SalesCard label="Faturamento do mês" value={formatBRL(summary.month.amount)}>
+              {plural(summary.month.count, 'venda', 'vendas')} em {monthLabel(today).split(' ')[0]} · média{' '}
+              <b className="text-gray-200">{formatBRL(summary.averagePerDay)}</b> por dia
+            </SalesCard>
+            <SalesCard label="Vendeu hoje" value={formatBRL(summary.today.amount)}>
+              em {plural(summary.today.count, 'venda', 'vendas')} · ontem{' '}
+              <b className="text-gray-200">{formatBRL(summary.yesterday.amount)}</b>
+            </SalesCard>
+          </div>
+          <div className="text-right">
+            <Link to="/vendas" className="text-sm text-gold-500 hover:text-gold-400">
+              Ver vendas →
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard icon={Wallet} label="Valor total em estoque" value={formatBRL(totalSaleValue)} accent />

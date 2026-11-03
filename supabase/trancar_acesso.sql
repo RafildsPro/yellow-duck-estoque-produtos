@@ -43,4 +43,18 @@ create policy "authenticated delete product photos" on storage.objects
   to authenticated
   using (bucket_id = 'product-photos');
 
+-- vendas (a tabela só existe depois de rodar supabase/vendas.sql; sem ela, este trecho não faz nada)
+do $$
+begin
+  if to_regclass('public.sales') is not null then
+    drop policy if exists "public full access" on public.sales;
+    drop policy if exists "authenticated full access" on public.sales;
+    create policy "authenticated full access" on public.sales
+      for all
+      to authenticated
+      using (true)
+      with check (true);
+  end if;
+end $$;
+
 notify pgrst, 'reload schema';
