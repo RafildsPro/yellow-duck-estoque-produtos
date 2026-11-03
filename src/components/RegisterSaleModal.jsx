@@ -21,20 +21,30 @@ function Optional() {
   return <span className="font-normal text-gray-500"> (opcional)</span>
 }
 
-export default function RegisterSaleModal({ products, accounts = [], initialKind = 'product', onClose, onSubmit }) {
-  const [kind, setKind] = useState(initialKind)
-  const [product, setProduct] = useState(null)
-  const [quantity, setQuantity] = useState('1')
-  const [gross, setGross] = useState('')
-  const [grossTouched, setGrossTouched] = useState(false)
-  const [discount, setDiscount] = useState('')
-  const [paid, setPaid] = useState('') // carta avulsa: quanto você pagou na carta (opcional)
-  const [channel, setChannel] = useState('WhatsApp')
-  const [account, setAccount] = useState('')
-  const [soldAt, setSoldAt] = useState(() => todayISO())
-  const [description, setDescription] = useState('')
-  const [baseAmount, setBaseAmount] = useState('')
-  const [pct, setPct] = useState('')
+// Registra uma venda nova ou, se `sale` for passada, edita essa venda (o tipo não muda).
+export default function RegisterSaleModal({ products, accounts = [], initialKind = 'product', sale = null, onClose, onSubmit }) {
+  const isEditing = Boolean(sale)
+  const [kind, setKind] = useState(sale ? sale.kind : initialKind)
+  const [product, setProduct] = useState(() =>
+    sale?.product_id ? (products.find((p) => p.id === sale.product_id) ?? null) : null
+  )
+  const [quantity, setQuantity] = useState(sale ? String(sale.quantity) : '1')
+  // Na edição, o "quanto recebeu" volta a ser o valor antes do desconto, como foi digitado.
+  const [gross, setGross] = useState(
+    sale ? moneyToInput(Number(sale.amount) + (sale.kind === 'commission' ? 0 : Number(sale.discount))) : ''
+  )
+  const [grossTouched, setGrossTouched] = useState(isEditing)
+  const [discount, setDiscount] = useState(sale && Number(sale.discount) > 0 ? moneyToInput(sale.discount) : '')
+  // carta avulsa: quanto você pagou na carta (opcional)
+  const [paid, setPaid] = useState(
+    sale && sale.kind === 'service' && Number(sale.unit_cost) > 0 ? moneyToInput(sale.unit_cost) : ''
+  )
+  const [channel, setChannel] = useState(sale ? (sale.channel ?? '') : 'WhatsApp')
+  const [account, setAccount] = useState(sale?.account ?? '')
+  const [soldAt, setSoldAt] = useState(() => sale?.sold_at ?? todayISO())
+  const [description, setDescription] = useState(sale && sale.kind !== 'product' ? sale.description : '')
+  const [baseAmount, setBaseAmount] = useState(sale?.base_amount ? moneyToInput(sale.base_amount) : '')
+  const [pct, setPct] = useState(sale?.commission_pct ? String(Number(sale.commission_pct)).replace('.', ',') : '')
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
@@ -60,7 +70,23 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
     setError('')
   }
 
+  // Trocar de produto na edição volta a sugerir o preço do novo produto.
+  function handleProductChange(next) {
+    setProduct(next)
+    if (isEditing && next && next.id !== sale.product_id) setGrossTouched(false)
+  }
+
   const qty = Math.floor(Number(quantity))
+  // Ao editar o mesmo produto, as unidades que a própria venda já tirou do estoque ainda podem ser usadas.
+  const sameProduct = isEditing && sale.kind === 'product' && product && product.id === sale.product_id
+  const available = product ? product.quantity + (sameProduct ? sale.quantity : 0) : 0
+  // O custo gravado na venda vale enquanto o produto for o mesmo e o custo não estiver zerado.
+  const unitCost =
+    kind === 'product' && product
+      ? sameProduct && Number(sale.unit_cost) > 0
+        ? Number(sale.unit_cost)
+        : Number(product.cost_price)
+      : 0
   const grossNum = parseMoney(gross)
   const discountNum = discount.trim() === '' ? 0 : parseMoney(discount)
   const allowsDiscount = kind !== 'commission'
@@ -71,7 +97,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
   const paidOk = Number.isFinite(paidNum) && paidNum >= 0
   const cost =
     kind === 'product' && product
-      ? Number(product.cost_price) * (qty > 0 ? qty : 0)
+      ? unitCost * (qty > 0 ? qty : 0)
       : kind === 'service' && paidOk
         ? paidNum
         : 0
@@ -84,7 +110,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
     if (kind === 'product') {
       if (!product) return setError('Escolha o produto vendido.')
       if (!(qty >= 1)) return setError('A quantidade precisa ser de pelo menos 1.')
-      if (qty > product.quantity) return setError(`Só há ${product.quantity} unidade(s) em estoque.`)
+      if (qty > available) return setError(`Só há ${available} unidade(s) em estoque.`)
     } else if (!description.trim()) {
       return setError(kind === 'service' ? 'Informe o nome da carta.' : 'Descreva a venda.')
     }
@@ -122,22 +148,28 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
   }
 
   return (
-    <Modal title="Registrar venda" onClose={onClose} maxWidth="max-w-lg">
+    <Modal title={isEditing ? 'Editar venda' : 'Registrar venda'} onClose={onClose} maxWidth="max-w-lg">
       <form onSubmit={handleSubmit} className="space-y-4">
-        <div className="grid grid-cols-3 gap-1 rounded-xl bg-navy-800 p-1">
-          {Object.entries(SALE_KINDS).map(([key, { label }]) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => changeKind(key)}
-              className={`rounded-lg px-2 py-2 text-xs font-semibold sm:text-sm ${
-                kind === key ? 'bg-gold-500 text-navy-950' : 'text-gray-300 hover:bg-navy-700'
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+        {isEditing ? (
+          <p className="inline-block rounded-lg bg-navy-800 px-3 py-1.5 text-sm font-semibold text-gold-500">
+            {SALE_KINDS[kind].label}
+          </p>
+        ) : (
+          <div className="grid grid-cols-3 gap-1 rounded-xl bg-navy-800 p-1">
+            {Object.entries(SALE_KINDS).map(([key, { label }]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => changeKind(key)}
+                className={`rounded-lg px-2 py-2 text-xs font-semibold sm:text-sm ${
+                  kind === key ? 'bg-gold-500 text-navy-950' : 'text-gray-300 hover:bg-navy-700'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <p className="text-xs text-gray-500">
           {kind === 'product'
@@ -150,12 +182,15 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
         {kind === 'product' ? (
           <div>
             <label className={labelClass}>O que você vendeu?</label>
-            <ProductPicker products={products} value={product} onChange={setProduct} autoFocus />
+            <ProductPicker products={products} value={product} onChange={handleProductChange} autoFocus={!isEditing} />
+            {isEditing && !product && (
+              <p className="mt-1 text-xs text-gold-500">O produto desta venda foi apagado. Escolha qual foi vendido.</p>
+            )}
             {product && (
               <p className="mt-1 text-xs text-gray-500">
-                {Number(product.cost_price) > 0 ? (
+                {unitCost > 0 ? (
                   <>
-                    você paga <b className="text-gray-300">{formatBRL(product.cost_price)}</b> por unidade
+                    você paga <b className="text-gray-300">{formatBRL(unitCost)}</b> por unidade
                   </>
                 ) : (
                   <span className="text-gold-500">este produto está sem custo cadastrado</span>
@@ -216,7 +251,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
               <input
                 type="number"
                 min="1"
-                max={product?.quantity}
+                max={product ? available : undefined}
                 value={quantity}
                 onChange={(e) => setQuantity(e.target.value)}
                 className={inputClass}
@@ -295,6 +330,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
           <div>
             <label className={labelClass}>Por onde vendeu?</label>
             <select value={channel} onChange={(e) => setChannel(e.target.value)} className={inputClass}>
+              {!CHANNELS.includes(channel) && <option value={channel}>{channel || 'Não informado'}</option>}
               {CHANNELS.map((c) => (
                 <option key={c} value={c}>
                   {c}
@@ -328,9 +364,20 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
           <input type="date" value={soldAt} onChange={(e) => setSoldAt(e.target.value)} className={inputClass} />
         </div>
 
-        {kind === 'product' && product && qty >= 1 && (
+        {kind === 'product' && product && qty >= 1 && !isEditing && (
           <p className="text-xs text-gray-500">
             Ao registrar, {qty} un {qty === 1 ? 'sai' : 'saem'} do estoque e o valor entra no faturamento, tudo junto.
+          </p>
+        )}
+        {kind === 'product' && product && qty >= 1 && isEditing && (
+          <p className="text-xs text-gray-500">
+            {!sameProduct
+              ? `Ao salvar, as unidades voltam para o produto antigo e ${qty} un ${qty === 1 ? 'sai' : 'saem'} do estoque deste.`
+              : qty === sale.quantity
+                ? 'O estoque não muda: a quantidade é a mesma.'
+                : qty > sale.quantity
+                  ? `Ao salvar, ${qty - sale.quantity === 1 ? 'sai mais 1 un' : `saem mais ${qty - sale.quantity} un`} do estoque.`
+                  : `Ao salvar, ${sale.quantity - qty} un ${sale.quantity - qty === 1 ? 'volta' : 'voltam'} para o estoque.`}
           </p>
         )}
 
@@ -351,7 +398,7 @@ export default function RegisterSaleModal({ products, accounts = [], initialKind
           disabled={saving}
           className="w-full rounded-xl bg-gold-500 py-3 font-semibold text-navy-950 hover:bg-gold-400 disabled:opacity-60"
         >
-          {saving ? 'Registrando...' : 'Registrar venda'}
+          {saving ? (isEditing ? 'Salvando...' : 'Registrando...') : isEditing ? 'Salvar alterações' : 'Registrar venda'}
         </button>
       </form>
     </Modal>

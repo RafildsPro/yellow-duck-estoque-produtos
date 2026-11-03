@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { Download, Handshake, Layers, Package, Search, Trash2, TriangleAlert } from 'lucide-react'
+import { Download, Handshake, Layers, Package, Pencil, Search, Trash2, TriangleAlert } from 'lucide-react'
 import { useProducts } from '../hooks/useProducts'
 import { useSales } from '../hooks/useSales'
 import { useStockMovements } from '../hooks/useStockMovements'
@@ -31,12 +31,13 @@ const KIND_ICONS = { product: Package, service: Layers, commission: Handshake }
 const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`
 
 export default function Vendas() {
-  const { sales, loading, error, missingSetup, registerSale, deleteSale } = useSales()
+  const { sales, loading, error, missingSetup, registerSale, updateSale, deleteSale } = useSales()
   const { products, refetch: refetchProducts } = useProducts()
   const { movements } = useStockMovements()
   const [period, setPeriod] = useState('month')
   const [search, setSearch] = useState('')
   const [registerKind, setRegisterKind] = useState(null)
+  const [editing, setEditing] = useState(null) // venda aberta para edição
   const [actionError, setActionError] = useState('')
 
   const today = todayISO()
@@ -73,6 +74,11 @@ export default function Vendas() {
 
   async function handleRegister(payload) {
     await registerSale(payload)
+    await refetchProducts()
+  }
+
+  async function handleUpdate(payload) {
+    await updateSale(editing.id, payload)
     await refetchProducts()
   }
 
@@ -281,6 +287,13 @@ export default function Vendas() {
                               )}
                             </div>
                             <button
+                              onClick={() => setEditing(sale)}
+                              title="Editar esta venda"
+                              className="flex-shrink-0 rounded-lg p-2 text-gray-500 hover:bg-navy-700 hover:text-gold-500"
+                            >
+                              <Pencil size={16} />
+                            </button>
+                            <button
                               onClick={() => handleDelete(sale)}
                               title="Desfazer esta venda"
                               className="flex-shrink-0 rounded-lg p-2 text-gray-500 hover:bg-navy-700 hover:text-red-400"
@@ -329,6 +342,17 @@ export default function Vendas() {
             </table>
           </div>
         </details>
+      )}
+
+      {editing && (
+        <RegisterSaleModal
+          key={editing.id}
+          sale={editing}
+          products={products}
+          accounts={accounts}
+          onClose={() => setEditing(null)}
+          onSubmit={handleUpdate}
+        />
       )}
 
       {registerKind && (

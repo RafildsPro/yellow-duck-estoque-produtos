@@ -1,6 +1,6 @@
 import { supabase } from './supabase'
 
-// O banco devolve estes códigos quando o supabase/vendas.sql ainda não foi rodado.
+// O banco devolve estes códigos quando o supabase/vendas.sql ainda não foi rodado (ou está desatualizado).
 export const MISSING_SETUP_CODES = ['PGRST205', 'PGRST202', '42P01']
 
 function friendly(error) {
@@ -10,16 +10,14 @@ function friendly(error) {
   return error.message
 }
 
-// Registra a venda e, se for produto físico, dá baixa no estoque, tudo numa operação só.
-export async function registerSaleRpc(sale) {
-  const { data, error } = await supabase.rpc('register_sale', {
-    p_kind: sale.kind,
+// Campos que o registrar e o editar usam em comum.
+function fields(sale) {
+  return {
     p_description: sale.description ?? null,
     p_product_id: sale.productId ?? null,
     p_quantity: sale.quantity ?? 1,
     p_amount: sale.amount,
     p_discount: sale.discount ?? 0,
-    p_fee: 0,
     p_channel: sale.channel ?? null,
     p_account: sale.account ?? null,
     p_sold_at: sale.soldAt ?? null,
@@ -27,9 +25,20 @@ export async function registerSaleRpc(sale) {
     p_commission_pct: sale.commissionPct ?? null,
     p_unit_cost: sale.unitCost ?? null, // só vale para carta avulsa; produto usa o custo do cadastro
     p_notes: sale.notes ?? null,
-  })
+  }
+}
+
+// Registra a venda e, se for produto físico, dá baixa no estoque, tudo numa operação só.
+export async function registerSaleRpc(sale) {
+  const { data, error } = await supabase.rpc('register_sale', { p_kind: sale.kind, p_fee: 0, ...fields(sale) })
   if (error) throw new Error(friendly(error))
   return data
+}
+
+// Edita uma venda. Em produto físico, o estoque é ajustado pela diferença, tudo numa operação só.
+export async function updateSaleRpc(id, sale) {
+  const { error } = await supabase.rpc('update_sale', { p_sale_id: id, ...fields(sale) })
+  if (error) throw new Error(friendly(error))
 }
 
 // Desfaz a venda e devolve as unidades ao estoque, se era produto físico.

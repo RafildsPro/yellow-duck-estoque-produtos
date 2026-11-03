@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { supabase } from '../lib/supabase'
-import { MISSING_SETUP_CODES, deleteSaleRpc, registerSaleRpc } from '../lib/salesApi'
+import { MISSING_SETUP_CODES, deleteSaleRpc, registerSaleRpc, updateSaleRpc } from '../lib/salesApi'
 
 export function useSales() {
   const [sales, setSales] = useState([])
@@ -38,10 +38,15 @@ export function useSales() {
     return id
   }
 
+  async function updateSale(id, sale) {
+    await updateSaleRpc(id, sale)
+    await fetchSales()
+  }
+
   async function deleteSale(id) {
     await deleteSaleRpc(id)
     await fetchSales()
   }
 
-  return { sales, loading, error, missingSetup, refetch: fetchSales, registerSale, deleteSale }
+  return { sales, loading, error, missingSetup, refetch: fetchSales, registerSale, updateSale, deleteSale }
 }
